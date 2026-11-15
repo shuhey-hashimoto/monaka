@@ -1,0 +1,11 @@
+// MONAKA 共通設定
+// ここの2行を自分の環境に合わせて書き換える。
+
+// バンドルIDの先頭（例: jp.example）。アプリは $(BUNDLE_ID_PREFIX).monaka になる
+BUNDLE_ID_PREFIX = com.example
+
+// Apple Developer の Team ID（Xcode の Signing & Capabilities で選んでもよい）
+DEVELOPMENT_TEAM =
+
+// 3つのターゲットで共有する App Group
+APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).monaka
