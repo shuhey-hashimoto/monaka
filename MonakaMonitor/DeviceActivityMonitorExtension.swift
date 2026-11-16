@@ -9,6 +9,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
         let now = Date()
+        // 記録しない日は何もしない
+        guard !FocusSettings.load().isSkipped(now) else { return }
         let interval = currentInterval(for: activity, at: now)
         // 区間の始まりを起点に、6時間のリセット通知と目標達成通知を予約し直す
         NotificationPlanner.scheduleReset(lastUse: now, intervalEnd: interval?.range.end)
@@ -28,6 +30,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard let minutes = MonitorNames.minutes(fromEvent: event.rawValue) else { return }
 
         let now = Date()
+        guard !FocusSettings.load().isSkipped(now) else { return }
         let store = UsageLogStore()
         // 同じ閾値の重複は無視する（iOS 26系の誤検知対策）
         guard !store.contains(intervalID: activity.rawValue, cumulativeMinutes: minutes, on: now) else { return }

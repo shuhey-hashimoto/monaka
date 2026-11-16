@@ -9,6 +9,18 @@ struct OnboardingView: View {
     @State private var step = 1
     @State private var errorMessage: String?
 
+    // 3/3 で選ぶ内容（初期値：平日 9:00〜18:00、フリータイム 12:00〜13:00、目標 6:00）
+    @State private var pickedWeekdays: Set<Int> = [2, 3, 4, 5, 6]
+    @State private var focus = TimeRange(start: TimeOfDay(hour: 9), end: TimeOfDay(hour: 18))
+    @State private var hasFreeTime = true
+    @State private var free = TimeRange(start: TimeOfDay(hour: 12), end: TimeOfDay(hour: 13))
+    @State private var goalMinutes = 6 * 60
+    @State private var model = SettingsModel()
+
+    private var draftDay: DaySchedule {
+        DaySchedule(focus: [focus], free: hasFreeTime ? [free] : [])
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             progressBar
@@ -117,25 +129,106 @@ struct OnboardingView: View {
     // MARK: - 3/3 集中タイムと目標
 
     private var scheduleStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("集中タイムと目標を決めましょう")
                 .font(.title2.weight(.semibold))
-                .padding(.top, 48)
-            Text("平日 9:00〜18:00（フリータイム 12:00〜13:00）、目標 6:00 で始めます。曜日ごとの調整はあとから設定で。")
+                .padding(.top, 40)
+            Text("選んだ曜日に同じ時間を設定します。曜日ごとの調整はあとから設定で。")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
-            // TODO: デザイン案どおり、曜日・時刻・目標をこの画面で選べるようにする
-            Spacer()
-            PrimaryButton(title: "はじめる") {
-                let settings = FocusSettings.default
-                settings.save()
-                do {
-                    try MonitorScheduler.apply(settings)
-                    onFinish()
-                } catch {
-                    errorMessage = error.localizedDescription
+                .padding(.top, 8)
+
+            Text("曜日")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 24)
+            HStack(spacing: 6) {
+                ForEach(WeekdayOrder.mondayFirst, id: \.self) { weekday in
+                    let isOn = pickedWeekdays.contains(weekday)
+                    Button {
+                        if isOn { pickedWeekdays.remove(weekday) } else { pickedWeekdays.insert(weekday) }
+                    } label: {
+                        Text(WeekdayOrder.shortName(weekday))
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .foregroundStyle(isOn ? Theme.textPrimary : Theme.textTertiary)
+                            .background(isOn ? Color(hex: 0x1B2B4C) : .clear, in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(isOn ? Theme.accent : Color(hex: 0x262B36))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
             }
+            .padding(.top, 10)
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text("集中タイム")
+                    Spacer()
+                    TimeRangeRow(range: $focus)
+                }
+                .frame(minHeight: 56)
+                Divider().overlay(Theme.border)
+                Toggle("フリータイム", isOn: $hasFreeTime)
+                    .frame(minHeight: 48)
+                if hasFreeTime {
+                    HStack {
+                        Spacer()
+                        TimeRangeRow(range: $free)
+                    }
+                    .padding(.bottom, 8)
+                }
+                Divider().overlay(Theme.border)
+                GoalStepper(minutes: $goalMinutes)
+                    .frame(minHeight: 56)
+            }
+            .padding(.horizontal, 16)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border))
+            .padding(.top, 20)
+
+            Text(summaryText)
+                .font(.footnote)
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 12)
+
+            Spacer()
+            PrimaryButton(title: "はじめる") { start() }
+            Text("ロック画面を長押しして「カスタマイズ」から、MONAKAのウィジェットを追加できます。")
+                .font(.caption)
+                .foregroundStyle(Theme.textTertiary)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
+        }
+    }
+
+    private var summaryText: String {
+        let target = draftDay.targetMinutes
+        guard target > 0 else { return String(localized: "集中タイムを設定してください。") }
+        let percent = Int((Double(goalMinutes) / Double(target) * 100).rounded())
+        return String(localized: "記録の対象は1日 \(DurationFormat.hm(target))。目標 \(DurationFormat.hm(goalMinutes)) は対象の\(percent)%です。")
+    }
+
+    private func start() {
+        guard !pickedWeekdays.isEmpty else {
+            errorMessage = String(localized: "曜日を1つ以上選んでください。")
+            return
+        }
+        let day = draftDay
+        let saved = model.update { settings in
+            settings.days = [:]
+            for weekday in pickedWeekdays { settings.days[weekday] = day }
+            settings.goalMinutes = goalMinutes
+        }
+        if saved {
+            errorMessage = nil
+            onFinish()
+        } else {
+            errorMessage = model.errorMessage
         }
     }
 

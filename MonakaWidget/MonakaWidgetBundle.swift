@@ -5,5 +5,6 @@ import WidgetKit
 struct MonakaWidgetBundle: WidgetBundle {
     var body: some Widget {
         FocusWidget()
+        TodayWidget()
     }
 }

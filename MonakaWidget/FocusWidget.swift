@@ -42,7 +42,7 @@ struct FocusProvider: TimelineProvider {
         completion(Timeline(entries: entries, policy: .after(tomorrow)))
     }
 
-    private func entry(at date: Date) -> FocusEntry {
+    func entry(at date: Date) -> FocusEntry {
         let settings = FocusSettings.load()
         let intervals = settings.intervals(on: date)
 
