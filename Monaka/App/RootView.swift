@@ -1,6 +1,10 @@
+import SwiftData
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         TabView {
             Tab("今日", systemImage: "clock") {
@@ -16,5 +20,15 @@ struct RootView: View {
                 SettingsView()
             }
         }
+        .task { refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refresh() }
+        }
+    }
+
+    /// アプリを開くたびに、昨日までを日次記録にまとめ、区切り通知を7日分予約し直す。
+    private func refresh() {
+        DailyRecorder.finalize(context: context)
+        NotificationPlanner.scheduleBoundaries(settings: FocusSettings.load())
     }
 }

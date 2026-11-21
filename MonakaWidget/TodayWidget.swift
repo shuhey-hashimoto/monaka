@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import WidgetKit
 
@@ -76,10 +77,17 @@ struct TodayProvider: TimelineProvider {
         let weekdayIndex = (calendar.component(.weekday, from: today) + 5) % 7 // 月=0 … 日=6
         let monday = calendar.date(byAdding: .day, value: -weekdayIndex, to: today) ?? today
         let labels = ["月", "火", "水", "木", "金", "土", "日"]
+        // 昨日までは日次記録から読む（まとめ終わった使用ログは消えているため）
+        let recordsByKey = Dictionary(
+            DailyStore.records(in: ModelContext(DailyStore.container)).map { ($0.dayKey, $0.achievementRate) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let week = (0..<7).map { i -> TodayEntry.WeekDay in
             let day = calendar.date(byAdding: .day, value: i, to: monday) ?? monday
             var rate: Double?
-            if day <= today, !settings.intervals(on: day).isEmpty {
+            if day < today, let recorded = recordsByKey[FocusSettings.dayKey(day)] {
+                rate = recorded
+            } else if day <= today, !settings.intervals(on: day).isEmpty {
                 let end = day == today ? date : day.addingTimeInterval(24 * 60 * 60)
                 rate = summary(on: day, until: end).achievementRate(goalMinutes: settings.goalMinutes)
             }

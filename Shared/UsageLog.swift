@@ -51,6 +51,25 @@ final class UsageLogStore {
         }
     }
 
+    /// 日次記録にまとめ終わった古いログを消す（今日の分は残す）。
+    func removeEvents(before date: Date) {
+        let kept = all().filter { $0.date >= date }
+        let encoder = JSONEncoder()
+        var data = Data()
+        for event in kept {
+            guard let line = try? encoder.encode(event) else { continue }
+            data.append(line)
+            data.append(0x0A)
+        }
+        try? data.write(to: fileURL, options: .atomic)
+    }
+
+    /// 使い始めた日（初回セットアップを終えた日）。日次記録をまとめ始める日。
+    var startDate: Date? {
+        get { defaults.object(forKey: AppGroup.Key.startDate) as? Date }
+        set { defaults.set(newValue, forKey: AppGroup.Key.startDate) }
+    }
+
     /// 最後に使ったと検知した時刻。ウィジェットの経過時間の起点。
     var lastUseDate: Date? {
         get { defaults.object(forKey: AppGroup.Key.lastUseDate) as? Date }

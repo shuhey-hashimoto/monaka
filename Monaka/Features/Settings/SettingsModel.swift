@@ -34,6 +34,10 @@ final class SettingsModel {
         candidate.save()
         settings = candidate
         errorMessage = nil
+
+        let store = UsageLogStore()
+        if store.startDate == nil { store.startDate = Date() }
+        NotificationPlanner.scheduleBoundaries(settings: candidate)
         WidgetCenter.shared.reloadAllTimelines()
         return true
     }

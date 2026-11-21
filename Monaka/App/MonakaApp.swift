@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -17,5 +18,6 @@ struct MonakaApp: App {
             .preferredColorScheme(.dark)
             .tint(Theme.accentBright)
         }
+        .modelContainer(DailyStore.container)
     }
 }

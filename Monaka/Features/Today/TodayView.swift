@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// 「今日」画面（S-02）。
@@ -5,9 +6,18 @@ struct TodayView: View {
     @State private var settings = FocusSettings.load()
     @State private var summary = DailySummary.empty
     @State private var now = Date()
+    @Query(sort: \DailyRecord.date, order: .reverse) private var records: [DailyRecord]
 
     private var progress: Double { summary.achievementRate(goalMinutes: settings.goalMinutes) }
     private var remainingMinutes: Int { max(settings.goalMinutes - summary.unusedMinutes, 0) }
+
+    /// 連続達成日数（今日の達成も含む。今日が未達でもまだ途中なので途切れさせない）
+    private var streak: Int {
+        DailyStats.streak(
+            todayAchieved: summary.targetMinutes > 0 && summary.unusedMinutes >= settings.goalMinutes,
+            pastAchievedNewestFirst: records.map(\.achieved)
+        )
+    }
 
     var body: some View {
         ScrollView {
@@ -66,8 +76,7 @@ struct TodayView: View {
         HStack(spacing: 10) {
             StatCard(title: "最長連続未使用", value: DurationFormat.hm(summary.longestUnusedMinutes))
             StatCard(title: "使用回数", value: "\(summary.useCount)回")
-            // TODO: 日次記録の保存（F-06）ができたら連続達成日数を出す
-            StatCard(title: "連続達成", value: "-日")
+            StatCard(title: "連続達成", value: "\(streak)日")
         }
     }
 
@@ -130,4 +139,5 @@ struct StatCard: View {
 
 #Preview {
     TodayView()
+        .modelContainer(DailyStore.container)
 }

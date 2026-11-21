@@ -19,5 +19,6 @@ enum AppGroup {
     enum Key {
         static let settings = "monaka.settings"
         static let lastUseDate = "monaka.lastUseDate"
+        static let startDate = "monaka.startDate"
     }
 }

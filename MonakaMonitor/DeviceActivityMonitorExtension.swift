@@ -15,6 +15,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // 区間の始まりを起点に、6時間のリセット通知と目標達成通知を予約し直す
         NotificationPlanner.scheduleReset(lastUse: now, intervalEnd: interval?.range.end)
         rescheduleGoal(now: now)
+        // アプリを何日も開かなくても区切り通知が切れないよう、ここでも7日分を予約し直す
+        NotificationPlanner.scheduleBoundaries(settings: FocusSettings.load(), from: now)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -22,7 +24,22 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         super.intervalDidEnd(for: activity)
         NotificationPlanner.cancelReset()
         WidgetCenter.shared.reloadAllTimelines()
-        // TODO: その日最後の区間なら終了時サマリー通知（F-11）を送る
+
+        // その日最後の区間が終わったら、終了時サマリー（F-11）を送る
+        let now = Date()
+        let settings = FocusSettings.load()
+        guard !settings.isSkipped(now) else { return }
+        let intervals = settings.intervals(on: now)
+        guard intervals.last?.id == activity.rawValue else { return }
+
+        let summary = UsageCalculator.summarize(intervals: intervals, events: UsageLogStore().events(on: now), now: now)
+        let text = NotificationPlanner.summaryText(
+            summary: summary,
+            goalMinutes: settings.goalMinutes,
+            previousUnusedMinutes: DailySummaryMemo.previous(before: now)
+        )
+        NotificationPlanner.sendSummary(text)
+        DailySummaryMemo.save(unusedMinutes: summary.unusedMinutes, on: now)
     }
 
     override func eventDidReachThreshold(_ event: DeviceActivityEvent.Name, activity: DeviceActivityName) {
