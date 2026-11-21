@@ -40,6 +40,21 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         )
         NotificationPlanner.sendSummary(text)
         DailySummaryMemo.save(unusedMinutes: summary.unusedMinutes, on: now)
+
+        // ストリークの節目・自己ベスト（N-09）
+        let previousDay = Milestones.previousFocusDay(before: now, settings: settings)
+        if let result = Milestones.closeDay(
+            memo: MilestoneMemoStore.load(),
+            dayKey: FocusSettings.dayKey(now),
+            previousFocusDayKey: previousDay.map { FocusSettings.dayKey($0) },
+            unusedMinutes: summary.unusedMinutes,
+            goalMinutes: settings.goalMinutes
+        ) {
+            MilestoneMemoStore.save(result.memo)
+            if let text = Milestones.text(milestoneStreak: result.milestoneStreak, newBestMinutes: result.newBestMinutes) {
+                NotificationPlanner.sendMilestone(text)
+            }
+        }
     }
 
     override func eventDidReachThreshold(_ event: DeviceActivityEvent.Name, activity: DeviceActivityName) {

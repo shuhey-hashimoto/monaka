@@ -107,6 +107,14 @@ enum NotificationPlanner {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "monaka.summary", content: content, trigger: nil))
     }
 
+    /// ストリークの節目・自己ベストの通知（N-09）。終了時サマリーとは別に1通だけ送る。
+    static func sendMilestone(_ text: String) {
+        let content = UNMutableNotificationContent()
+        content.body = text
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "monaka.milestone", content: content, trigger: nil))
+    }
+
     static func cancelReset() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [resetID])
     }

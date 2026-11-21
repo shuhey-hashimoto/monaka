@@ -58,3 +58,84 @@ struct NotificationTextTests {
         #expect(text == "今日は 3:20。明日また挑戦しましょう")
     }
 }
+
+struct MilestoneTests {
+    private func memo(_ day: String, streak: Int, best: Int) -> MilestoneMemo {
+        MilestoneMemo(dayKey: day, streak: streak, bestUnusedMinutes: best)
+    }
+
+    @Test func 節目の日数() {
+        #expect([3, 7, 14, 30, 60, 100, 200].allSatisfy(Milestones.isMilestone))
+        #expect(![1, 2, 4, 8, 31, 150].contains(where: Milestones.isMilestone))
+    }
+
+    @Test func 前の集中日から連続がつながり節目で知らせる() {
+        let result = Milestones.closeDay(
+            memo: memo("2026-11-20", streak: 6, best: 500),
+            dayKey: "2026-11-23", previousFocusDayKey: "2026-11-20",
+            unusedMinutes: 400, goalMinutes: 360
+        )
+        #expect(result?.memo == memo("2026-11-23", streak: 7, best: 500))
+        #expect(result?.milestoneStreak == 7)
+        #expect(result?.newBestMinutes == nil)
+    }
+
+    @Test func 未達なら連続は0に戻る() {
+        let result = Milestones.closeDay(
+            memo: memo("2026-11-20", streak: 6, best: 500),
+            dayKey: "2026-11-23", previousFocusDayKey: "2026-11-20",
+            unusedMinutes: 300, goalMinutes: 360
+        )
+        #expect(result?.memo.streak == 0)
+        #expect(result?.milestoneStreak == nil)
+    }
+
+    @Test func 間の日を締めていなければ1から数える() {
+        let result = Milestones.closeDay(
+            memo: memo("2026-11-18", streak: 6, best: 500),
+            dayKey: "2026-11-23", previousFocusDayKey: "2026-11-20",
+            unusedMinutes: 400, goalMinutes: 360
+        )
+        #expect(result?.memo.streak == 1)
+    }
+
+    @Test func 自己ベストの更新() {
+        let result = Milestones.closeDay(
+            memo: memo("2026-11-20", streak: 0, best: 400),
+            dayKey: "2026-11-21", previousFocusDayKey: "2026-11-20",
+            unusedMinutes: 410, goalMinutes: 480
+        )
+        #expect(result?.newBestMinutes == 410)
+        #expect(result?.memo.bestUnusedMinutes == 410)
+    }
+
+    @Test func 使い始めの日は自己ベストと言わない() {
+        let result = Milestones.closeDay(memo: nil, dayKey: "2026-11-21", previousFocusDayKey: nil, unusedMinutes: 300, goalMinutes: 360)
+        #expect(result?.newBestMinutes == nil)
+        #expect(result?.memo.bestUnusedMinutes == 300)
+    }
+
+    @Test func 同じ日を2回締めない() {
+        let result = Milestones.closeDay(
+            memo: memo("2026-11-21", streak: 2, best: 400),
+            dayKey: "2026-11-21", previousFocusDayKey: "2026-11-20",
+            unusedMinutes: 500, goalMinutes: 360
+        )
+        #expect(result == nil)
+    }
+
+    @Test func 記録から合わせ直す() {
+        let fromRecords = Milestones.reconciled(memo: memo("2026-11-18", streak: 1, best: 450), lastRecordDayKey: "2026-11-20", streakThroughLastRecord: 4, bestFromRecords: 420)
+        #expect(fromRecords == memo("2026-11-20", streak: 4, best: 450))
+        // 今日をもう締めていれば連続はそのまま
+        let closedToday = Milestones.reconciled(memo: memo("2026-11-21", streak: 5, best: 400), lastRecordDayKey: "2026-11-20", streakThroughLastRecord: 4, bestFromRecords: 420)
+        #expect(closedToday == memo("2026-11-21", streak: 5, best: 420))
+    }
+
+    @Test func 通知の文面() {
+        #expect(Milestones.text(milestoneStreak: 7, newBestMinutes: nil) == "7日連続で目標を達成しました")
+        #expect(Milestones.text(milestoneStreak: nil, newBestMinutes: 340) == "これまでで一番長い未使用時間です（5:40）")
+        #expect(Milestones.text(milestoneStreak: 3, newBestMinutes: 400) == "3日連続で目標を達成しました\nこれまでで一番長い未使用時間です（6:40）")
+        #expect(Milestones.text(milestoneStreak: nil, newBestMinutes: nil) == nil)
+    }
+}
