@@ -34,11 +34,13 @@ struct FlowerRing: View {
     var progress: Double
     var lineWidth: CGFloat
     var color: Color = Theme.accent
+    /// ロック画面のウィジェットでは暗い色が見えなくなるので、白の半透明などに差し替える
+    var trackColor: Color = Theme.track
 
     var body: some View {
         ZStack {
             FlowerShape()
-                .stroke(Theme.track, style: StrokeStyle(lineWidth: lineWidth, lineJoin: .round))
+                .stroke(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineJoin: .round))
             FlowerShape()
                 .trim(from: 0, to: max(0, min(progress, 1)))
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))

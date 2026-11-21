@@ -525,7 +525,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Monaka.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/Monaka-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Monaka;
@@ -558,7 +558,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Monaka.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/Monaka-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Monaka;
@@ -589,7 +589,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/MonakaMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MonakaMonitor-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MonakaMonitor;
@@ -616,7 +616,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/MonakaMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MonakaMonitor-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MonakaMonitor;
@@ -643,7 +643,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/MonakaWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MonakaWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MonakaWidget;
@@ -670,7 +670,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/MonakaWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MonakaWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MonakaWidget;

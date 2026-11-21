@@ -2,14 +2,19 @@ import SwiftData
 import SwiftUI
 import WidgetKit
 
-/// ホーム画面の大きいウィジェット（systemLarge）。
-/// 「今日」画面を縮めたもの：花形の進み具合、未使用時間、今の状態、今週7日分の達成率。
+/// 「今日の集中」ウィジェット。大きさごとに見せる量を変える。
+/// - 小：花形と未使用時間だけ（StandBy でも使える）
+/// - 中：花形と未使用時間、今の状態、目標までの残り、連続達成日数
+/// - 大：「今日」画面を縮めたもの。今週7日分の達成率つき
+/// - ロック画面の丸：小さな花形と未使用時間
 struct TodayEntry: TimelineEntry {
     let date: Date
     let state: FocusWidgetState
     let summary: DailySummary
     let goalMinutes: Int
     let week: [WeekDay]
+    /// 今日を含めた連続達成日数（今日が未達でも途中なので途切れさせない）
+    let streak: Int
 
     struct WeekDay: Identifiable {
         let id: Int
@@ -30,7 +35,8 @@ struct TodayProvider: TimelineProvider {
             state: .focus(since: Date().addingTimeInterval(-47 * 60)),
             summary: DailySummary(targetMinutes: 340, usedMinutes: 68, longestUnusedMinutes: 125, sessionStarts: []),
             goalMinutes: 360,
-            week: week
+            week: week,
+            streak: 4
         )
     }
 
@@ -78,8 +84,9 @@ struct TodayProvider: TimelineProvider {
         let monday = calendar.date(byAdding: .day, value: -weekdayIndex, to: today) ?? today
         let labels = ["月", "火", "水", "木", "金", "土", "日"]
         // 昨日までは日次記録から読む（まとめ終わった使用ログは消えているため）
+        let records = DailyStore.records(in: ModelContext(DailyStore.container))
         let recordsByKey = Dictionary(
-            DailyStore.records(in: ModelContext(DailyStore.container)).map { ($0.dayKey, $0.achievementRate) },
+            records.map { ($0.dayKey, $0.achievementRate) },
             uniquingKeysWith: { first, _ in first }
         )
         let week = (0..<7).map { i -> TodayEntry.WeekDay in
@@ -94,20 +101,164 @@ struct TodayProvider: TimelineProvider {
             return TodayEntry.WeekDay(id: i, label: labels[i], rate: rate, isToday: day == today)
         }
 
+        let todaySummary = summary(on: today, until: date)
+        let streak = DailyStats.streak(
+            todayAchieved: settings.goalMinutes > 0 && todaySummary.unusedMinutes >= settings.goalMinutes,
+            pastAchievedNewestFirst: records.filter { $0.date < today }.reversed().map(\.achieved)
+        )
+
         return TodayEntry(
             date: date,
             state: FocusProvider().entry(at: date).state,
-            summary: summary(on: today, until: date),
+            summary: todaySummary,
             goalMinutes: settings.goalMinutes,
-            week: week
+            week: week,
+            streak: streak
         )
     }
 }
 
+/// 大きさで見た目を切り替える。
 struct TodayWidgetView: View {
+    @Environment(\.widgetFamily) private var family
     let entry: TodayEntry
 
-    private var remaining: Int { max(entry.goalMinutes - entry.summary.unusedMinutes, 0) }
+    var body: some View {
+        switch family {
+        case .systemSmall:
+            TodaySmallView(entry: entry)
+        case .systemMedium:
+            TodayMediumView(entry: entry)
+        case .accessoryCircular:
+            TodayCircularView(entry: entry)
+        default:
+            TodayLargeView(entry: entry)
+        }
+    }
+}
+
+extension TodayEntry {
+    var rate: Double { summary.achievementRate(goalMinutes: goalMinutes) }
+    var remainingMinutes: Int { max(goalMinutes - summary.unusedMinutes, 0) }
+}
+
+// MARK: - 小
+
+struct TodaySmallView: View {
+    let entry: TodayEntry
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                FlowerRing(progress: entry.rate, lineWidth: 7)
+                VStack(spacing: 0) {
+                    Text("未使用")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.textTertiary)
+                    Text(DurationFormat.hm(entry.summary.unusedMinutes))
+                        .font(.system(size: 30, weight: .light))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(Theme.textPrimary)
+                }
+            }
+            .frame(width: 112, height: 112)
+
+            Text("目標 \(DurationFormat.hm(entry.goalMinutes))")
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .containerBackground(for: .widget) { Theme.background }
+    }
+}
+
+// MARK: - 中
+
+struct TodayMediumView: View {
+    let entry: TodayEntry
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                FlowerRing(progress: entry.rate, lineWidth: 8)
+                VStack(spacing: 0) {
+                    Text("未使用時間")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.textTertiary)
+                    Text(DurationFormat.hm(entry.summary.unusedMinutes))
+                        .font(.system(size: 32, weight: .light))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(Theme.textPrimary)
+                }
+            }
+            .frame(width: 122, height: 122)
+
+            VStack(alignment: .leading, spacing: 8) {
+                StatusChip(state: entry.state)
+
+                if case .focus(let since) = entry.state {
+                    HStack(spacing: 4) {
+                        Text("現在")
+                        Text(since, style: .timer)
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("使用していません")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                }
+
+                Spacer(minLength: 0)
+
+                row(title: "目標まで", value: entry.remainingMinutes == 0 ? "達成" : "あと \(DurationFormat.hm(entry.remainingMinutes))")
+                row(title: "連続達成", value: "\(entry.streak)日")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .containerBackground(for: .widget) { Theme.background }
+    }
+
+    private func row(title: LocalizedStringKey, value: String) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(Theme.textTertiary)
+            Spacer()
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(Theme.textPrimary)
+        }
+        .font(.footnote)
+    }
+}
+
+// MARK: - ロック画面の丸
+
+struct TodayCircularView: View {
+    let entry: TodayEntry
+
+    var body: some View {
+        ZStack {
+            FlowerRing(progress: entry.rate, lineWidth: 3.5, color: .white, trackColor: .white.opacity(0.25))
+                .widgetAccentable()
+            Text(DurationFormat.hm(entry.summary.unusedMinutes))
+                .font(.system(size: 14, weight: .semibold))
+                .monospacedDigit()
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 6)
+        }
+        .containerBackground(for: .widget) { AccessoryWidgetBackground() }
+    }
+}
+
+// MARK: - 大
+
+struct TodayLargeView: View {
+    let entry: TodayEntry
+
+    private var remaining: Int { entry.remainingMinutes }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -117,7 +268,7 @@ struct TodayWidgetView: View {
                     .tracking(2)
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                statusChip
+                StatusChip(state: entry.state)
             }
 
             ZStack {
@@ -168,11 +319,15 @@ struct TodayWidgetView: View {
         }
         .containerBackground(for: .widget) { Theme.background }
     }
+}
 
-    @ViewBuilder
-    private var statusChip: some View {
+/// 今の状態（集中タイム中・フリータイムなど）の小さな札。中・大で使う。
+struct StatusChip: View {
+    let state: FocusWidgetState
+
+    var body: some View {
         Group {
-            switch entry.state {
+            switch state {
             case .focus:
                 Text("集中タイム中")
             case .free(let until):
@@ -189,6 +344,8 @@ struct TodayWidgetView: View {
         .padding(.vertical, 4)
         .background(Color(hex: 0x121A2C), in: Capsule())
         .overlay(Capsule().stroke(Color(hex: 0x22324F)))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 }
 
@@ -200,7 +357,7 @@ struct TodayWidget: Widget {
             TodayWidgetView(entry: entry)
         }
         .configurationDisplayName("今日の集中")
-        .description("今日の未使用時間と、今週の達成率を表示します。")
-        .supportedFamilies([.systemLarge])
+        .description("今日の未使用時間と、目標までの進み具合を表示します。")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular])
     }
 }
