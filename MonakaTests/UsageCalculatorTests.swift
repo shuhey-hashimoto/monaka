@@ -53,6 +53,7 @@ struct UsageCalculatorTests {
         #expect(summary.unusedMinutes == 177)
         #expect(summary.useCount == 2)
         #expect(summary.sessionStarts == [at(9, 59), at(10, 59)])
+        #expect(summary.sessionMinutes == [2, 1])
         #expect(summary.longestUnusedMinutes == 60) // 11:00〜12:00
     }
 

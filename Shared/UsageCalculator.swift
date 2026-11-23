@@ -10,6 +10,8 @@ struct DailySummary: Equatable {
     var longestUnusedMinutes: Int
     /// 使い始めの時刻（近似：最初の検知の1分前）。
     var sessionStarts: [Date]
+    /// それぞれの使用の長さ（分）。sessionStarts と同じ順。日次記録には保存しない（今日の画面だけで使う）
+    var sessionMinutes: [Int] = []
 
     var unusedMinutes: Int { max(targetMinutes - usedMinutes, 0) }
     var useCount: Int { sessionStarts.count }
@@ -32,6 +34,7 @@ enum UsageCalculator {
         var used = 0
         var longest = 0
         var starts: [Date] = []
+        var lengths: [Int] = []
 
         for interval in intervals {
             let range = interval.range
@@ -47,16 +50,28 @@ enum UsageCalculator {
 
             var lastUsed = range.start
             var previous: Date?
+            // 累計分数は区間の初めから数えるので、使用ごとの長さは「前の使用の終わりの累計」との差になる
+            var cumulativeBefore = 0
+            var cumulative = 0
             for event in inInterval {
                 if let previous, event.date.timeIntervalSince(previous) < sessionGap {
                     // 同じ使用の続き
                 } else {
+                    if previous != nil {
+                        // 直前の使用を締める
+                        lengths.append(max(cumulative - cumulativeBefore, 1))
+                        cumulativeBefore = cumulative
+                    }
                     let start = max(range.start, event.date.addingTimeInterval(-60))
                     starts.append(start)
                     longest = max(longest, Int(start.timeIntervalSince(lastUsed) / 60))
                 }
+                cumulative = max(cumulative, event.cumulativeMinutes)
                 previous = event.date
                 lastUsed = event.date
+            }
+            if previous != nil {
+                lengths.append(max(cumulative - cumulativeBefore, 1))
             }
             longest = max(longest, Int(end.timeIntervalSince(lastUsed) / 60))
         }
@@ -65,7 +80,8 @@ enum UsageCalculator {
             targetMinutes: target,
             usedMinutes: min(used, target),
             longestUnusedMinutes: longest,
-            sessionStarts: starts
+            sessionStarts: starts,
+            sessionMinutes: lengths
         )
     }
 

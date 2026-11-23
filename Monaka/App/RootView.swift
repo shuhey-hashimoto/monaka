@@ -1,22 +1,28 @@
 import SwiftData
 import SwiftUI
 
+enum RootTab: Hashable {
+    case today, history, analysis, settings
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
 
+    @State private var tab: RootTab = .today
+
     var body: some View {
-        TabView {
-            Tab("今日", systemImage: "clock") {
-                TodayView()
+        TabView(selection: $tab) {
+            Tab("今日", systemImage: "clock", value: RootTab.today) {
+                TodayView(onShowHistory: { tab = .history })
             }
-            Tab("履歴", systemImage: "calendar") {
+            Tab("履歴", systemImage: "calendar", value: RootTab.history) {
                 HistoryView()
             }
-            Tab("分析", systemImage: "chart.bar") {
+            Tab("分析", systemImage: "chart.bar", value: RootTab.analysis) {
                 AnalysisView()
             }
-            Tab("設定", systemImage: "slider.horizontal.3") {
+            Tab("設定", systemImage: "slider.horizontal.3", value: RootTab.settings) {
                 SettingsView()
             }
         }

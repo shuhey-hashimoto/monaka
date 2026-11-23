@@ -113,6 +113,17 @@ struct OnboardingView: View {
             Text("集中タイム中は、必要なときだけ静かにお知らせします。")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
+
+            VStack(spacing: 0) {
+                notificationKind("区切り", "集中タイムとフリータイムの始まり")
+                notificationKind("目標達成", "未使用時間が目標を超えたとき")
+                notificationKind("サマリー", "1日の集中タイムが終わったときの結果")
+                notificationKind("リセット", "6:00 続けて使わなかったときの気分転換のすすめ", isLast: true)
+            }
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border))
+            .padding(.top, 18)
+
             Spacer()
             PrimaryButton(title: "通知を許可") {
                 Task {
@@ -123,6 +134,25 @@ struct OnboardingView: View {
             Button("あとで") { step = 3 }
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    /// 通知の種類の1行（左に種類、右に説明）
+    private func notificationKind(_ title: LocalizedStringKey, _ detail: LocalizedStringKey, isLast: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(Theme.accentBright)
+                .frame(width: 64, alignment: .leading)
+            Text(detail)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            if !isLast { Rectangle().fill(Theme.border).frame(height: 1) }
         }
     }
 

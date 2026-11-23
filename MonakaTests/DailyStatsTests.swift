@@ -139,3 +139,24 @@ struct MilestoneTests {
         #expect(Milestones.text(milestoneStreak: nil, newBestMinutes: nil) == nil)
     }
 }
+
+struct TodayStatusLabelTests {
+    private let calendar = Calendar(identifier: .gregorian)
+
+    /// 2026-11-23（月）の指定時刻
+    private func monday(_ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: 23, hour: hour, minute: minute))!
+    }
+
+    private func label(_ date: Date) -> String {
+        TodayStatusLabel.make(settings: .default, now: date, calendar: calendar).text
+    }
+
+    @Test func 状態ごとの札() {
+        #expect(label(monday(10)) == "集中タイム中 ・ 18:00まで")
+        #expect(TodayStatusLabel.make(settings: .default, now: monday(10), calendar: calendar).isFocus)
+        #expect(label(monday(12, 30)) == "フリータイム ・ 13:00まで")
+        #expect(label(monday(8)) == "次の集中タイム ・ 9:00から")
+        #expect(label(monday(19)) == "今日の集中タイムは終わりました")
+    }
+}
