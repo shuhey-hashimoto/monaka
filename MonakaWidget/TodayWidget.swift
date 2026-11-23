@@ -21,14 +21,23 @@ struct TodayEntry: TimelineEntry {
         let label: String
         /// 0〜1。記録がない日・まだ来ていない日は nil
         let rate: Double?
+        /// その日の未使用時間。記録がない日・まだ来ていない日は nil
+        let unusedMinutes: Int?
         let isToday: Bool
+        let achieved: Bool
     }
 }
 
 struct TodayProvider: TimelineProvider {
     func placeholder(in context: Context) -> TodayEntry {
         let week = ["月", "火", "水", "木", "金", "土", "日"].enumerated().map { i, label in
-            TodayEntry.WeekDay(id: i, label: label, rate: i < 4 ? [0.87, 1, 1, 0.76][i] : nil, isToday: i == 3)
+            TodayEntry.WeekDay(
+                id: i, label: label,
+                rate: i < 4 ? [0.87, 1, 1, 0.76][i] : nil,
+                unusedMinutes: i < 4 ? [312, 391, 365, 272][i] : nil,
+                isToday: i == 3,
+                achieved: i == 1 || i == 2
+            )
         }
         return TodayEntry(
             date: Date(),
@@ -86,19 +95,29 @@ struct TodayProvider: TimelineProvider {
         // 昨日までは日次記録から読む（まとめ終わった使用ログは消えているため）
         let records = DailyStore.records(in: ModelContext(DailyStore.container))
         let recordsByKey = Dictionary(
-            records.map { ($0.dayKey, $0.achievementRate) },
+            records.map { ($0.dayKey, $0) },
             uniquingKeysWith: { first, _ in first }
         )
         let week = (0..<7).map { i -> TodayEntry.WeekDay in
             let day = calendar.date(byAdding: .day, value: i, to: monday) ?? monday
             var rate: Double?
-            if day < today, let recorded = recordsByKey[FocusSettings.dayKey(day)] {
-                rate = recorded
+            var unused: Int?
+            var achieved = false
+            if day < today, let record = recordsByKey[FocusSettings.dayKey(day)] {
+                rate = record.achievementRate
+                unused = record.unusedMinutes
+                achieved = record.achieved
             } else if day <= today, !settings.intervals(on: day).isEmpty {
                 let end = day == today ? date : day.addingTimeInterval(24 * 60 * 60)
-                rate = summary(on: day, until: end).achievementRate(goalMinutes: settings.goalMinutes)
+                let s = summary(on: day, until: end)
+                rate = s.achievementRate(goalMinutes: settings.goalMinutes)
+                unused = s.unusedMinutes
+                achieved = settings.goalMinutes > 0 && s.unusedMinutes >= settings.goalMinutes
             }
-            return TodayEntry.WeekDay(id: i, label: labels[i], rate: rate, isToday: day == today)
+            return TodayEntry.WeekDay(
+                id: i, label: labels[i], rate: rate, unusedMinutes: unused,
+                isToday: day == today, achieved: achieved
+            )
         }
 
         let todaySummary = summary(on: today, until: date)
@@ -156,7 +175,7 @@ struct TodaySmallView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.textTertiary)
                     Text(DurationFormat.hm(entry.summary.unusedMinutes))
-                        .font(.system(size: 30, weight: .light))
+                        .font(.system(size: 30, weight: .semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.textPrimary)
@@ -186,7 +205,7 @@ struct TodayMediumView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.textTertiary)
                     Text(DurationFormat.hm(entry.summary.unusedMinutes))
-                        .font(.system(size: 32, weight: .light))
+                        .font(.system(size: 32, weight: .semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.textPrimary)
@@ -258,10 +277,13 @@ struct TodayCircularView: View {
 struct TodayLargeView: View {
     let entry: TodayEntry
 
-    private var remaining: Int { entry.remainingMinutes }
+    /// 今週の昨日までで、集中タイムがあった日
+    private var pastDays: [TodayEntry.WeekDay] {
+        entry.week.filter { !$0.isToday && $0.unusedMinutes != nil }
+    }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             HStack {
                 Text("MONAKA")
                     .font(.caption.weight(.semibold))
@@ -271,53 +293,108 @@ struct TodayLargeView: View {
                 StatusChip(state: entry.state)
             }
 
-            ZStack {
-                FlowerRing(progress: entry.summary.achievementRate(goalMinutes: entry.goalMinutes), lineWidth: 10)
-                VStack(spacing: 2) {
-                    Text("未使用時間")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
-                    Text(DurationFormat.hm(entry.summary.unusedMinutes))
-                        .font(.system(size: 46, weight: .ultraLight))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.textPrimary)
-                    Text("目標 \(DurationFormat.hm(entry.goalMinutes)) ・ あと \(DurationFormat.hm(remaining))")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textSecondary)
+            HStack(spacing: 16) {
+                ZStack {
+                    FlowerRing(progress: entry.rate, lineWidth: 9)
+                    VStack(spacing: 0) {
+                        Text("未使用時間")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.textTertiary)
+                        Text(DurationFormat.hm(entry.summary.unusedMinutes))
+                            .font(.system(size: 38, weight: .semibold))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.7)
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("目標 \(DurationFormat.hm(entry.goalMinutes))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
                 }
+                .frame(width: 136, height: 136)
+
+                VStack(spacing: 0) {
+                    stat("目標まで", entry.remainingMinutes == 0 ? "達成" : "あと \(DurationFormat.hm(entry.remainingMinutes))")
+                    divider
+                    stat("最長連続未使用", DurationFormat.hm(entry.summary.longestUnusedMinutes))
+                    divider
+                    stat("使用回数", "\(entry.summary.useCount)回")
+                    divider
+                    stat("連続達成", "\(entry.streak)日")
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(width: 168, height: 168)
 
             if case .focus(let since) = entry.state {
                 HStack(spacing: 6) {
                     Text("現在")
                     Text(since, style: .timer)
                         .monospacedDigit()
+                        .fontWeight(.semibold)
                         .foregroundStyle(Theme.textPrimary)
                     Text("使用していません")
                 }
                 .font(.footnote)
                 .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border))
             }
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 0) {
-                ForEach(entry.week) { day in
-                    VStack(spacing: 4) {
-                        ZStack {
-                            FlowerRing(progress: day.rate ?? 0, lineWidth: 3)
-                        }
-                        .frame(width: 30, height: 30)
-                        Text(day.label)
-                            .font(.caption2.weight(day.isToday ? .semibold : .regular))
-                            .foregroundStyle(day.isToday ? Theme.accentBright : Theme.textTertiary)
+            VStack(spacing: 8) {
+                HStack {
+                    Text("今週")
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if let average = DailyStats.average(pastDays.compactMap(\.unusedMinutes)) {
+                        Text("平均 \(DurationFormat.hm(average)) ・ 達成 \(pastDays.filter(\.achieved).count)/\(pastDays.count)日")
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.textTertiary)
                     }
-                    .frame(maxWidth: .infinity)
+                }
+                .font(.caption2)
+
+                HStack(spacing: 0) {
+                    ForEach(entry.week) { day in
+                        VStack(spacing: 3) {
+                            FlowerRing(progress: day.rate ?? 0, lineWidth: 3)
+                                .frame(width: 30, height: 30)
+                            Text(day.label)
+                                .font(.caption2.weight(day.isToday ? .semibold : .regular))
+                                .foregroundStyle(day.isToday ? Theme.accentBright : Theme.textTertiary)
+                            Text(day.unusedMinutes.map { DurationFormat.hm($0) } ?? DurationFormat.empty)
+                                .font(.system(size: 9))
+                                .monospacedDigit()
+                                .foregroundStyle(day.unusedMinutes == nil ? Theme.textTertiary.opacity(0.6) : Theme.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
         }
         .containerBackground(for: .widget) { Theme.background }
+    }
+
+    private var divider: some View {
+        Rectangle().fill(Theme.border).frame(height: 1)
+    }
+
+    private func stat(_ title: LocalizedStringKey, _ value: String) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(Theme.textTertiary)
+            Spacer(minLength: 4)
+            Text(value)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .foregroundStyle(Theme.textPrimary)
+        }
+        .font(.footnote)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.vertical, 7)
     }
 }
 
