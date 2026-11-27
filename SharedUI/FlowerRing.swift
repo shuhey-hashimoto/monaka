@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 /// モナカの皮の形（10枚の花びら）。アイコン案Dと同じ形。
 /// 上の中心から時計回りに描くので、trim で進み具合を表せる。
@@ -36,6 +37,8 @@ struct FlowerRing: View {
     var color: Color = Theme.accent
     /// ロック画面のウィジェットでは暗い色が見えなくなるので、白の半透明などに差し替える
     var trackColor: Color = Theme.track
+    /// ウィジェットの「色合い調整」で、進み具合だけをアクセント色で描かせる
+    var accentable = false
 
     var body: some View {
         ZStack {
@@ -44,6 +47,7 @@ struct FlowerRing: View {
             FlowerShape()
                 .trim(from: 0, to: max(0, min(progress, 1)))
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                .widgetAccentable(accentable)
         }
         .padding(lineWidth / 2)
     }
