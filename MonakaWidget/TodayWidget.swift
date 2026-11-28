@@ -165,11 +165,13 @@ extension TodayEntry {
 
 struct TodaySmallView: View {
     let entry: TodayEntry
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    private var palette: WidgetPalette { WidgetPalette(renderingMode) }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
-                FlowerRing(progress: entry.rate, lineWidth: 7)
+                FlowerRing(progress: entry.rate, lineWidth: 7, trackColor: palette.track, accentable: true)
                 VStack(spacing: 0) {
                     Text("未使用")
                         .font(.system(size: 10))
@@ -195,11 +197,13 @@ struct TodaySmallView: View {
 
 struct TodayMediumView: View {
     let entry: TodayEntry
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    private var palette: WidgetPalette { WidgetPalette(renderingMode) }
 
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
-                FlowerRing(progress: entry.rate, lineWidth: 8)
+                FlowerRing(progress: entry.rate, lineWidth: 8, trackColor: palette.track, accentable: true)
                 VStack(spacing: 0) {
                     Text("未使用時間")
                         .font(.system(size: 10))
@@ -217,14 +221,8 @@ struct TodayMediumView: View {
                 StatusChip(state: entry.state)
 
                 if case .focus(let since) = entry.state {
-                    HStack(spacing: 4) {
-                        Text("現在")
-                        Text(since, style: .timer)
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("使用していません")
-                    }
-                    .font(.caption)
+                    NowUnusedText(since: since)
+                        .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -276,6 +274,8 @@ struct TodayCircularView: View {
 
 struct TodayLargeView: View {
     let entry: TodayEntry
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    private var palette: WidgetPalette { WidgetPalette(renderingMode) }
 
     /// 今週の昨日までで、集中タイムがあった日
     private var pastDays: [TodayEntry.WeekDay] {
@@ -295,7 +295,7 @@ struct TodayLargeView: View {
 
             HStack(spacing: 16) {
                 ZStack {
-                    FlowerRing(progress: entry.rate, lineWidth: 9)
+                    FlowerRing(progress: entry.rate, lineWidth: 9, trackColor: palette.track, accentable: true)
                     VStack(spacing: 0) {
                         Text("未使用時間")
                             .font(.system(size: 10))
@@ -325,20 +325,12 @@ struct TodayLargeView: View {
             }
 
             if case .focus(let since) = entry.state {
-                HStack(spacing: 6) {
-                    Text("現在")
-                    Text(since, style: .timer)
-                        .monospacedDigit()
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.textPrimary)
-                    Text("使用していません")
-                }
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border))
+                NowUnusedText(since: since)
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(palette.border))
             }
 
             Spacer(minLength: 0)
@@ -359,11 +351,12 @@ struct TodayLargeView: View {
                 HStack(spacing: 0) {
                     ForEach(entry.week) { day in
                         VStack(spacing: 3) {
-                            FlowerRing(progress: day.rate ?? 0, lineWidth: 3)
+                            FlowerRing(progress: day.rate ?? 0, lineWidth: 3, trackColor: palette.track, accentable: true)
                                 .frame(width: 30, height: 30)
                             Text(day.label)
                                 .font(.caption2.weight(day.isToday ? .semibold : .regular))
                                 .foregroundStyle(day.isToday ? Theme.accentBright : Theme.textTertiary)
+                                .widgetAccentable(day.isToday)
                             Text(day.unusedMinutes.map { DurationFormat.hm($0) } ?? DurationFormat.empty)
                                 .font(.system(size: 9))
                                 .monospacedDigit()
@@ -378,7 +371,7 @@ struct TodayLargeView: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(Theme.border).frame(height: 1)
+        Rectangle().fill(palette.border).frame(height: 1)
     }
 
     private func stat(_ title: LocalizedStringKey, _ value: String) -> some View {
@@ -398,9 +391,41 @@ struct TodayLargeView: View {
     }
 }
 
+/// 「現在 0:47 使用していません」。
+/// 経過時間の Text を単独で並べると、幅いっぱいに広がって前後の文字が両端に離れてしまう。
+/// 1つの Text にまとめて、中身の幅で真ん中にそろえる。
+struct NowUnusedText: View {
+    let since: Date
+
+    var body: some View {
+        Text("現在 \(Text(since, style: .timer).fontWeight(.semibold).foregroundStyle(Theme.textPrimary)) 使用していません")
+            .monospacedDigit()
+            .foregroundStyle(Theme.textSecondary)
+            .multilineTextAlignment(.center)
+    }
+}
+
+/// ホーム画面のカスタマイズで「色合い調整」や「クリア」を選ぶと、ウィジェットは色を失い白の濃淡だけで描かれる。
+/// 不透明な暗い地もまっ白になって文字が読めなくなるので、その場合は白の半透明に切り替える。
+struct WidgetPalette {
+    let isFullColor: Bool
+
+    init(_ mode: WidgetRenderingMode) {
+        isFullColor = mode == .fullColor
+    }
+
+    var track: Color { isFullColor ? Theme.track : .white.opacity(0.18) }
+    var chipFill: Color { isFullColor ? Color(hex: 0x121A2C) : .white.opacity(0.12) }
+    var chipStroke: Color { isFullColor ? Color(hex: 0x22324F) : .white.opacity(0.25) }
+    var surface: Color { isFullColor ? Theme.surface : .white.opacity(0.10) }
+    var border: Color { isFullColor ? Theme.border : .white.opacity(0.18) }
+}
+
 /// 今の状態（集中タイム中・フリータイムなど）の小さな札。中・大で使う。
 struct StatusChip: View {
     let state: FocusWidgetState
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    private var palette: WidgetPalette { WidgetPalette(renderingMode) }
 
     var body: some View {
         Group {
@@ -419,8 +444,8 @@ struct StatusChip: View {
         .foregroundStyle(Color(hex: 0xC9D4EC))
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(Color(hex: 0x121A2C), in: Capsule())
-        .overlay(Capsule().stroke(Color(hex: 0x22324F)))
+        .background(palette.chipFill, in: Capsule())
+        .overlay(Capsule().stroke(palette.chipStroke))
         .lineLimit(1)
         .minimumScaleFactor(0.8)
     }
